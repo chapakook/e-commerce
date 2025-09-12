@@ -1,0 +1,505 @@
+# 🛒 E-Commerce Class Diagram
+```mermaid
+```
+
+## ♻️ 공유 커널 (Shared Kernel)
+```mermaid
+classDiagram
+    class BaseEntity {
+        <<abstract>>
+        - id Long
+        - createdAt ZonedDateTime
+        - updatedAt ZonedDateTime
+        - deletedAt ZonedDateTime
+        + guard() void
+        + delete() void
+        + restore() void
+        - prePersist() void
+        - preUpdate() void
+    }
+
+    class Money {
+        <<valueobject>>
+        - amount BigDecimal
+        - currency String
+        + getAmount() BigDecimal
+        + getCurrency() String
+        + plus(money Money) Money
+        + minus(money Money) Money
+    }
+```
+### 🏗️ BaseEntity
+- `BaseEntity`는 모든 엔티티가 상속하는 추상 클래스입니다.
+- `id`는 각 엔티티의 고유 식별자입니다.
+- `createdAt`, `updatedAt`, `deletedAt`는 각각 생성, 수정, 삭제 시각을 나타냅니다.
+- `guard()` 메서드는 엔티티의 무결성을 검사합니다.
+- `delete()` 메서드는 엔티티를 논리적으로 삭제합니다.
+- `restore()` 메서드는 논리적으로 삭제된 엔티티를 복원합니다.
+- `prePersist()`와 `preUpdate()` 메서드는 `JPA`의 라이프사이클 콜백 메서드로, 엔티티가 저장되거나 업데이트되기 전에 호출됩니다.
+
+### 💰 Money
+- `Money`는 금액과 통화를 나타내는 값 객체입니다.
+- `amount`는 금액을 나타내며, `BigDecimal` 타입으로 정의됩니다.
+- `currency`는 통화를 나타내며, `String` 타입으로 정의됩니다.
+- `getAmount()` 메서드는 금액을 반환합니다.
+- `getCurrency()` 메서드는 통화를 반환합니다.
+- `plus(money Money)` 메서드는 두 금액을 더한 새로운 `Money` 객체를 반환합니다.
+- `minus(money Money)` 메서드는 두 금액을 뺀 새로운 `Money` 객체를 반환합니다.
+
+## 🏷️ 바운디드 컨텍스트 (Bounded Contexts)
+### 👤 사용자 BC (Identity Bounded Context)
+```mermaid
+classDiagram
+    class UserId {
+        <<valueobject>>
+        - value String
+        + getValue() String
+    }
+    
+    class Email {
+        <<valueobject>>
+        - value String
+        + getValue() String
+    }
+
+    class Gender {
+        <<enumeration>>
+        + MALE
+        + FEMALE
+    }
+    
+    class Money {
+        <<valueobject>>
+        ...
+    }
+
+    class PointHistoryType {
+        <<enumeration>>
+        + CHARGE
+        + USE
+        + CANCEL
+    }
+
+    class Users {
+        + userId UserId
+        + email Email
+        + gender Gender
+        + birthDate Date
+        + guard() void ~~override~~
+    }
+
+    class Points {
+        + userId UserId
+        + balance Money
+        + charge(amount Money) void
+        + use(amount Money) void
+        + guard() void ~~override~~
+    }
+
+    class PointHistory {
+        + userId UserId
+        + type PointHistoryType
+        + amount Money
+        + balanceAfter Money
+        + referenceId String
+        + guard() void ~~override~~
+    }
+    
+    Users --> UserId : vo
+    Users --> Email : vo
+    Users --> Gender : enum
+    Points --> UserId : vo
+    Points --> Money : vo
+    PointHistory --> UserId : vo
+    PointHistory --> PointHistoryType : enum
+    PointHistory --> Money : vo
+    Users ..> Points : reference by userId
+    Users ..> PointHistory : reference by userId
+```
+
+### 🛍️ 카탈로그 BC (Catalog Bounded Context)
+```mermaid
+classDiagram
+    class BrandId {
+        <<valueobject>>
+        - value String
+        + getValue() String
+    }
+
+    class UniSku {
+        <<valueobject>>
+        - value String
+        + getValue() String
+    }
+
+    class Sku {
+        <<valueobject>>
+        - value String
+        + getValue() String
+    }
+    
+    class Money {
+        <<valueobject>>
+        ...
+    }
+    
+    class Quantity {
+        <<valueobject>>
+        - value Long
+        + getValue() Long
+        + plus(q:Quantity) Quantity
+        + minus(q:Quantity) Quantity
+        + isZero() Boolean
+    }
+
+    class ProductStatus {
+        <<enumeration>>
+        + CREATED
+        + ON_SALE
+        + SOLD_OUT
+        + DISCONTINUED
+    }
+
+    class Brands {
+        + brandId BrandId
+        + name String
+        + description String
+        + guard() void ~~override~~
+    }
+
+    class Products {
+        + uniSku UniSku
+        + brandId BrandId
+        + name String
+        + description String
+        + price Money
+        + favoriteCount Long
+        + status ProductStatus
+        + options List~ProductOptions~
+        + guard() void ~~override~~
+    }
+
+    class ProductOptions {
+        + sku Sku
+        + color String
+        + size String
+        + price Money
+        + guard() void ~~override~~
+    }
+
+    class Inventory {
+        + sku Sku
+        + available Quantity
+        + reserved Quantity
+        + version Long
+        + guard() void ~~override~~
+        + reserve(quantity Quantity) void
+        + release(quantity Quantity) void
+        + increase(quantity Quantity) void
+        + decrease(quantity Quantity) void
+    }
+    
+    Brands --> BrandId : vo
+    Brands ..> Products : reference by brandId
+    Products --> UniSku : vo
+    Products --> BrandId : vo
+    Products --> Money : vo
+    Products --> ProductStatus : enum
+    Products "1" --> "1..*" ProductOptions : contains
+    ProductOptions --> Sku : vo
+    ProductOptions --> Money : vo
+    ProductOptions ..> Inventory : reference by sku
+    Inventory --> Sku : vo
+    Inventory --> Quantity : vo
+```
+
+### ❤️ 소셜 BC (Social Bounded Context)
+```mermaid
+classDiagram
+    class UserId {
+        <<valueobject>>
+        ...
+    }
+    
+    class UniSku {
+        <<valueobject>>
+        ...
+    }
+    
+    class User {
+        + userId UserId
+        ...
+    }
+    
+    class Products {
+        + uniSku UniSku
+        ...
+    }
+    
+    class ProductFavorites {
+        + userId UserId
+        + uniSku UniSku
+        + guard() void ~~override~~
+    }
+    
+    ProductFavorites --> UserId : vo
+    Products ..> ProductFavorites : reference by uniSku
+    User ..> ProductFavorites : reference by userId
+    User --> UserId : vo
+    Products --> UniSku : vo
+    ProductFavorites --> UniSku : vo
+```
+
+### 🛒 카트 BC (Cart Bounded Context)
+```mermaid
+classDiagram
+    class UserId {
+        <<valueobject>>
+        ...
+    }
+    
+    class Money {
+        <<valueobject>>
+        ...
+    }
+
+    class Sku {
+        <<valueobject>>
+        ...
+    }
+
+    class Quantity {
+        <<valueobject>>
+        ...
+    }
+
+    class Carts {
+        + userId UserId
+        + items List~CartItems~
+        + guard() void ~~override~~
+        + clear() void
+        + add(items List~CartItems~) void
+        + remove(sku Sku) void
+        + change(sku Sku, quantity Quantity) void
+    }
+
+    class CartItems {
+        + sku Sku
+        + unitPrice Money
+        + quantity Quantity
+        + guard() void ~~override~~
+        + increase(quantity Quantity) void
+        + decrease(quantity Quantity) void
+    }
+
+    Carts --> UserId : vo
+    Carts "1" --> "0..*" CartItems : contains
+    CartItems --> Sku : vo
+    CartItems --> Quantity : vo
+    CartItems --> Money : vo
+```
+
+### 🧾 커머스 BC (Commerce Bounded Context)
+```mermaid
+classDiagram
+    class OrderNo {
+        <<valueobject>>
+        - value String
+        + getValue() String
+    }
+
+    class OrderStatus {
+        <<enumeration>>
+        + CREATED
+        + PENDING
+        + COMPLETED
+        + CANCELED
+    }
+
+    class UserId {
+        <<valueobject>>
+        ...
+    }
+
+    class Money {
+        <<valueobject>>
+        ...
+    }
+    
+    class Sku {
+        <<valueobject>>
+        ...
+    }
+    
+    class Quantity {
+        <<valueobject>>
+        ...
+    }
+
+    class PaymentStatus {
+        <<enumeration>>
+        + REQUESTED
+        + SUCCEEDED
+        + FAILED
+    }
+
+    class Orders {
+        + orderNo OrderNo
+        + userId UserId
+        + items List~OrderItems~
+        + productTotal Money
+        + discountTotal Money
+        + orderTotal Money
+        + status OrderStatus
+        + guard() void ~~override~~
+        + confirm() void
+        + cancel() void
+    }
+
+    class OrderItems {
+        + sku Sku
+        + unitPrice Money
+        + quantity Quantity
+        + guard() void ~~override~~
+    }
+
+    class Payments {
+        + orderNo OrderNo
+        + status PaymentStatus
+        + paidAmount Money
+        + approvedAt ZonedDateTime
+        + guard() void ~~override~~
+        + appreove() void
+    }
+    
+    Payments --> OrderNo : vo
+    Orders --> OrderNo : vo
+    Orders --> OrderStatus : enum
+    Payments --> PaymentStatus : enum
+    OrderItems --> Money : vo
+    Orders --> Money : vo
+    Payments --> Money : vo
+    Orders --> UserId : vo
+    Orders ..> Payments : reference by orderNo
+    Orders "1" --> "1..*" OrderItems : contains
+    OrderItems --> Sku : vo
+    OrderItems --> Quantity : vo
+```
+
+### 🎉 프로모션 BC (Promotion Bounded Context)
+```mermaid
+classDiagram
+    class PromotionStatus {
+       <<enumeration>>
+       + ACTIVE
+       + PAUSED
+       + EXPIRED
+    }
+    
+    class PromotionId {
+        <<valueobject>>
+        - value String
+        + getValue() String
+    }
+    
+    
+    class PromotionKind {
+         <<enumeration>>
+         + COUPON
+    }
+    
+    class DiscountType {
+       <<enumeration>>
+       + FIXED
+       + RATE
+    }
+    
+    
+    class Percentage {
+       <<valueobject>>
+       - value int
+       + getValue() int
+    }
+        
+    class CouponStatus {
+       <<enumeration>>
+       + UNUSED
+       + USED
+       + EXPIRED
+    }
+    
+    class CouponCode {
+       <<valueobject>>
+       - value String
+       + getValue() String
+    }
+
+    class CouponsId {
+        <<valueobject>>
+        - value String
+        + getValue() String
+    }
+
+    class DiscountPolicy {
+        + type DiscountType
+        + amount Money
+        + percentage Percentage
+        + guard() void ~~override~~
+        + calculate(original Money) Money
+    }
+    
+    class Promotion {
+         + promotionId PromotionId
+         + name String
+         + kind PromotionKind
+         + validFrom ZonedDateTime
+         + validTo ZonedDateTime
+         + description String
+         + status PromotionStatus
+    }
+    
+    class Coupons {
+       + couponId CouponsId
+       + promotionId PromotionId
+       + policy: DiscountPolicy
+       + guard() void ~~override~~
+       + issue() void
+    }
+    
+    class UserCoupons {
+       + code CouponCode
+       + couponId CouponsId
+       + userId UserId
+       + status CouponStatus
+       + issuedAt ZonedDateTime
+       + usedAt ZonedDateTime
+       + guard() void ~~override~~
+       + use() void
+    }
+    
+    class Money {
+       <<valueobject>>
+       ...
+    }
+    
+    class UserId {
+       <<valueobject>>
+       ...
+    }
+    
+    Coupons --> DiscountPolicy : vo
+    DiscountPolicy --> Percentage : vo
+    Coupons --> CouponsId : vo
+    UserCoupons --> CouponsId : vo
+    Promotion --> PromotionId : vo
+    Coupons --> PromotionId : vo
+    Promotion ..> Coupons : reference by promotionId
+    Promotion --> PromotionKind : enum
+    Promotion --> PromotionStatus : enum
+    Coupons ..> UserCoupons : reference by couponId
+    DiscountPolicy --> DiscountType : enum
+    DiscountPolicy --> Money : vo
+    UserCoupons --> CouponCode : vo
+    UserCoupons --> UserId : vo
+    UserCoupons --> CouponStatus : enum
+```
